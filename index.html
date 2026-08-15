@@ -1,0 +1,404 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Personal Budget Tracker & Tax Workbook</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+  <style>
+    :root {
+      --bg: #0f172a; --surface: #1e293b; --surface2: #334155;
+      --text: #e2e8f0; --muted: #94a3b8; --accent: #38bdf8;
+      --green: #4ade80; --red: #f87171; --yellow: #fbbf24;
+      --border: #475569; --radius: 8px;
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+    .header { background: var(--surface); border-bottom: 1px solid var(--border); padding: 1rem 2rem; display: flex; justify-content: space-between; align-items: center; }
+    .header h1 { font-size: 1.25rem; font-weight: 600; }
+    .header span { color: var(--muted); font-size: 0.85rem; }
+    .container { max-width: 1280px; margin: 0 auto; padding: 1.5rem; }
+    .grid { display: grid; gap: 1.5rem; }
+    .grid-4 { grid-template-columns: repeat(4, 1fr); }
+    .grid-2 { grid-template-columns: repeat(2, 1fr); }
+    .grid-3 { grid-template-columns: repeat(3, 1fr); }
+    .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 1.25rem; }
+    .card h3 { font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); margin-bottom: 0.5rem; }
+    .card .value { font-size: 1.75rem; font-weight: 700; }
+    .card .sub { font-size: 0.8rem; color: var(--muted); margin-top: 0.25rem; }
+    .positive { color: var(--green); }
+    .negative { color: var(--red); }
+    .neutral { color: var(--accent); }
+    .warn { color: var(--yellow); }
+    table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+    th { text-align: left; color: var(--muted); font-weight: 500; padding: 0.6rem 0.75rem; border-bottom: 1px solid var(--border); font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.04em; }
+    td { padding: 0.6rem 0.75rem; border-bottom: 1px solid var(--surface2); }
+    tr:hover td { background: rgba(56,189,248,0.04); }
+    .badge { display: inline-block; padding: 0.15rem 0.5rem; border-radius: 99px; font-size: 0.7rem; font-weight: 600; }
+    .badge-green { background: rgba(74,222,128,0.15); color: var(--green); }
+    .badge-red { background: rgba(248,113,113,0.15); color: var(--red); }
+    .badge-yellow { background: rgba(251,191,36,0.15); color: var(--yellow); }
+    .badge-blue { background: rgba(56,189,248,0.15); color: var(--accent); }
+    .tabs { display: flex; gap: 0.5rem; margin-bottom: 1.5rem; }
+    .tab { padding: 0.5rem 1rem; border-radius: var(--radius); cursor: pointer; font-size: 0.85rem; background: var(--surface); border: 1px solid var(--border); color: var(--muted); transition: all 0.2s; }
+    .tab.active, .tab:hover { background: var(--accent); color: var(--bg); border-color: var(--accent); }
+    .chart-wrap { position: relative; height: 280px; }
+    .section-title { font-size: 1rem; font-weight: 600; margin-bottom: 1rem; display: flex; align-items: center; gap: 0.5rem; }
+    .redacted { background: var(--surface2); color: transparent; border-radius: 3px; user-select: none; display: inline-block; min-width: 60px; }
+    .bar { height: 6px; border-radius: 3px; background: var(--surface2); overflow: hidden; margin-top: 0.35rem; }
+    .bar-fill { height: 100%; border-radius: 3px; transition: width 0.5s; }
+    .progress-row { margin-bottom: 0.75rem; }
+    .progress-label { display: flex; justify-content: space-between; font-size: 0.8rem; margin-bottom: 0.2rem; }
+    .footer { text-align: center; padding: 2rem; color: var(--muted); font-size: 0.75rem; }
+    .note { background: rgba(56,189,248,0.08); border: 1px solid rgba(56,189,248,0.2); border-radius: var(--radius); padding: 0.75rem 1rem; font-size: 0.8rem; color: var(--accent); margin-bottom: 1.5rem; }
+    @media (max-width: 900px) { .grid-4, .grid-3, .grid-2 { grid-template-columns: 1fr; } }
+    .tax-row { display: flex; justify-content: space-between; padding: 0.5rem 0; border-bottom: 1px solid var(--surface2); font-size: 0.85rem; }
+    .tax-row:last-child { border-bottom: none; font-weight: 700; }
+    .tax-row .label { color: var(--muted); }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1>Personal Budget Tracker & Tax Workbook</h1>
+    <span>FY 2025-2026 | Last updated: Aug 2026 | <span class="redacted">XXXX</span>'s finances</span>
+  </div>
+
+  <div class="container">
+    <div class="note">
+      Some values have been redacted for privacy. This is a real, actively-used financial tracking tool built for personal use. Data reflects actual income, expenses, and tax planning.
+    </div>
+
+    <div class="tabs">
+      <div class="tab active" onclick="showTab('overview')">Overview</div>
+      <div class="tab" onclick="showTab('monthly')">Monthly Detail</div>
+      <div class="tab" onclick="showTab('tax')">Tax Workbook</div>
+      <div class="tab" onclick="showTab('investments')">Investments</div>
+    </div>
+
+    <div id="tab-overview">
+      <div class="grid grid-4" style="margin-bottom:1.5rem">
+        <div class="card">
+          <h3>Net Income YTD</h3>
+          <div class="value positive">+18,420</div>
+          <div class="sub">Jan-Aug 2026 | 8 months</div>
+        </div>
+        <div class="card">
+          <h3>Total Expenses YTD</h3>
+          <div class="value negative">-14,892</div>
+          <div class="sub">Avg 1,862/mo</div>
+        </div>
+        <div class="card">
+          <h3>Net Savings YTD</h3>
+          <div class="value neutral">+3,528</div>
+          <div class="sub">Savings rate: 19.2%</div>
+        </div>
+        <div class="card">
+          <h3>Emergency Fund</h3>
+          <div class="value warn">3.1 mo</div>
+          <div class="sub">Target: 6 months</div>
+        </div>
+      </div>
+
+      <div class="grid grid-2" style="margin-bottom:1.5rem">
+        <div class="card">
+          <div class="section-title">Income vs Expenses (2026)</div>
+          <div class="chart-wrap"><canvas id="chartIncomeExp"></canvas></div>
+        </div>
+        <div class="card">
+          <div class="section-title">Expense Breakdown (Aug 2026)</div>
+          <div class="chart-wrap"><canvas id="chartExpCat"></canvas></div>
+        </div>
+      </div>
+
+      <div class="grid grid-2">
+        <div class="card">
+          <div class="section-title">Budget vs Actual (Aug 2026)</div>
+          <div class="progress-row">
+            <div class="progress-label"><span>Housing</span><span>680 / 700</span></div>
+            <div class="bar"><div class="bar-fill" style="width:97%;background:var(--yellow)"></div></div>
+          </div>
+          <div class="progress-row">
+            <div class="progress-label"><span>Food & Groceries</span><span>342 / 400</span></div>
+            <div class="bar"><div class="bar-fill" style="width:85%;background:var(--green)"></div></div>
+          </div>
+          <div class="progress-row">
+            <div class="progress-label"><span>Transport</span><span>89 / 150</span></div>
+            <div class="bar"><div class="bar-fill" style="width:59%;background:var(--green)"></div></div>
+          </div>
+          <div class="progress-row">
+            <div class="progress-label"><span>Subscriptions & SaaS</span><span>187 / 180</span></div>
+            <div class="bar"><div class="bar-fill" style="width:103%;background:var(--red)"></div></div>
+          </div>
+          <div class="progress-row">
+            <div class="progress-label"><span>Infrastructure (VPS/Cloud)</span><span>142 / 160</span></div>
+            <div class="bar"><div class="bar-fill" style="width:89%;background:var(--green)"></div></div>
+          </div>
+          <div class="progress-row">
+            <div class="progress-label"><span>Health & Insurance</span><span>95 / 120</span></div>
+            <div class="bar"><div class="bar-fill" style="width:79%;background:var(--green)"></div></div>
+          </div>
+          <div class="progress-row">
+            <div class="progress-label"><span>Personal & Misc</span><span>223 / 200</span></div>
+            <div class="bar"><div class="bar-fill" style="width:111%;background:var(--red)"></div></div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="section-title">Recurring Subscriptions</div>
+          <table>
+            <thead><tr><th>Service</th><th>Category</th><th>Amount</th><th>Status</th></tr></thead>
+            <tbody>
+              <tr><td>Claude Pro</td><td>AI/Dev Tools</td><td>$20</td><td><span class="badge badge-green">Active</span></td></tr>
+              <tr><td>Hetzner VPS x2</td><td>Infrastructure</td><td>~58</td><td><span class="badge badge-green">Active</span></td></tr>
+              <tr><td>Hetzner Storage Box</td><td>Infrastructure</td><td>3.81</td><td><span class="badge badge-green">Active</span></td></tr>
+              <tr><td>GitHub Pro</td><td>Dev Tools</td><td>$4</td><td><span class="badge badge-green">Active</span></td></tr>
+              <tr><td>M365 Business</td><td>Productivity</td><td>~12</td><td><span class="badge badge-green">Active</span></td></tr>
+              <tr><td>Domain (get-<span class="redacted">XXX</span>.com)</td><td>Infrastructure</td><td>~14/yr</td><td><span class="badge badge-green">Active</span></td></tr>
+              <tr><td>Cloudflare Pro</td><td>Infrastructure</td><td>$20</td><td><span class="badge badge-blue">Eval</span></td></tr>
+              <tr><td>Spotify Family</td><td>Personal</td><td>17.99</td><td><span class="badge badge-green">Active</span></td></tr>
+              <tr><td><span class="redacted">XXXXX</span> Insurance</td><td>Health</td><td>~95</td><td><span class="badge badge-green">Active</span></td></tr>
+              <tr><td><span class="redacted">XXX</span> Mobile</td><td>Telecom</td><td>~15</td><td><span class="badge badge-green">Active</span></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <div id="tab-monthly" style="display:none">
+      <div class="card">
+        <div class="section-title">Monthly Transactions (Aug 2026 - Sample)</div>
+        <table>
+          <thead><tr><th>Date</th><th>Description</th><th>Category</th><th>Amount</th><th>Balance</th></tr></thead>
+          <tbody>
+            <tr><td>01 Aug</td><td>Rent - <span class="redacted">XXXXXXX</span></td><td><span class="badge badge-yellow">Housing</span></td><td class="negative">-680.00</td><td>4,218.32</td></tr>
+            <tr><td>01 Aug</td><td>Hetzner - CPX41 (Prod)</td><td><span class="badge badge-blue">Infra</span></td><td class="negative">-29.90</td><td>4,188.42</td></tr>
+            <tr><td>01 Aug</td><td>Hetzner - CPX31 (Dev)</td><td><span class="badge badge-blue">Infra</span></td><td class="negative">-17.68</td><td>4,170.74</td></tr>
+            <tr><td>02 Aug</td><td>Supermarket - <span class="redacted">XXXX</span></td><td><span class="badge badge-green">Food</span></td><td class="negative">-67.42</td><td>4,103.32</td></tr>
+            <tr><td>03 Aug</td><td>Freelance payment - <span class="redacted">XXXXXXX</span></td><td><span class="badge badge-green">Income</span></td><td class="positive">+2,400.00</td><td>6,503.32</td></tr>
+            <tr><td>05 Aug</td><td>Claude Pro subscription</td><td><span class="badge badge-blue">AI Tools</span></td><td class="negative">-20.00</td><td>6,483.32</td></tr>
+            <tr><td>06 Aug</td><td>Pharmacy</td><td><span class="badge badge-red">Health</span></td><td class="negative">-12.50</td><td>6,470.82</td></tr>
+            <tr><td>07 Aug</td><td>Gas station</td><td><span class="badge badge-yellow">Transport</span></td><td class="negative">-45.00</td><td>6,425.82</td></tr>
+            <tr><td>08 Aug</td><td>Amazon - USB-C hub</td><td><span class="badge badge-blue">Equipment</span></td><td class="negative">-34.99</td><td>6,390.83</td></tr>
+            <tr><td>10 Aug</td><td>Restaurant - <span class="redacted">XXX</span></td><td><span class="badge badge-yellow">Food</span></td><td class="negative">-42.00</td><td>6,348.83</td></tr>
+            <tr><td>11 Aug</td><td>Domain renewal (.xyz x3)</td><td><span class="badge badge-blue">Infra</span></td><td class="negative">-8.97</td><td>6,339.86</td></tr>
+            <tr><td>12 Aug</td><td>Consulting income - <span class="redacted">XXXX</span></td><td><span class="badge badge-green">Income</span></td><td class="positive">+1,800.00</td><td>8,139.86</td></tr>
+            <tr><td>14 Aug</td><td>Supermarket</td><td><span class="badge badge-green">Food</span></td><td class="negative">-53.80</td><td>8,086.06</td></tr>
+            <tr><td>15 Aug</td><td>M365 Business Basic</td><td><span class="badge badge-blue">SaaS</span></td><td class="negative">-12.00</td><td>8,074.06</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="card" style="margin-top:1.5rem">
+        <div class="section-title">Monthly Summary (2026)</div>
+        <div class="chart-wrap" style="height:220px"><canvas id="chartMonthly"></canvas></div>
+      </div>
+    </div>
+
+    <div id="tab-tax" style="display:none">
+      <div class="grid grid-2">
+        <div class="card">
+          <div class="section-title">Tax Estimation FY 2026 (Flat-rate regime)</div>
+          <div class="tax-row"><span class="label">Gross Revenue (projected full year)</span><span>27,600</span></div>
+          <div class="tax-row"><span class="label">Deductible coefficient (78%)</span><span>21,528</span></div>
+          <div class="tax-row"><span class="label">Taxable income</span><span>6,072</span></div>
+          <div class="tax-row"><span class="label">Substitute tax (15%)</span><span class="negative">-911</span></div>
+          <div class="tax-row"><span class="label">INPS contributions (~26.07%)</span><span class="negative">-1,583</span></div>
+          <div class="tax-row"><span class="label">INPS deductible from tax base</span><span class="positive">+1,583</span></div>
+          <div class="tax-row"><span class="label">Advance payments (saldo + acconto)</span><span class="warn">-2,100</span></div>
+          <div class="tax-row"><span>Effective tax rate (on gross)</span><span class="warn">~9.0%</span></div>
+        </div>
+        <div class="card">
+          <div class="section-title">Tax Calendar & Deadlines</div>
+          <table>
+            <thead><tr><th>Date</th><th>Obligation</th><th>Est. Amount</th><th>Status</th></tr></thead>
+            <tbody>
+              <tr><td>30 Jun 2026</td><td>Saldo 2025 + 1st advance 2026</td><td><span class="redacted">X,XXX</span></td><td><span class="badge badge-green">Paid</span></td></tr>
+              <tr><td>30 Nov 2026</td><td>2nd advance 2026</td><td>~1,050</td><td><span class="badge badge-yellow">Upcoming</span></td></tr>
+              <tr><td>30 Jun 2027</td><td>Saldo 2026 + 1st advance 2027</td><td>~1,800</td><td><span class="badge badge-blue">Forecast</span></td></tr>
+              <tr><td>30 Nov 2027</td><td>Dichiarazione redditi 2026</td><td>-</td><td><span class="badge badge-blue">Forecast</span></td></tr>
+            </tbody>
+          </table>
+          <div style="margin-top:1rem;font-size:0.8rem;color:var(--muted)">
+            Note: First year "hump" effect — saldo + acconto in the same deadline creates a cash flow spike (~2x normal).
+            This is NOT a higher tax rate, just timing. The advance rolls forward as a deposit.
+          </div>
+        </div>
+      </div>
+
+      <div class="card" style="margin-top:1.5rem">
+        <div class="section-title">Deductible Business Expenses (running log)</div>
+        <table>
+          <thead><tr><th>Item</th><th>Vendor</th><th>Annual Cost</th><th>Deductible?</th><th>Notes</th></tr></thead>
+          <tbody>
+            <tr><td>Cloud infrastructure</td><td>Hetzner</td><td>~570</td><td><span class="badge badge-green">Yes</span></td><td>VPS prod + dev + storage box</td></tr>
+            <tr><td>AI development tools</td><td>Anthropic</td><td>~240</td><td><span class="badge badge-green">Yes</span></td><td>Claude Pro subscription</td></tr>
+            <tr><td>Email & productivity</td><td>Microsoft</td><td>~144</td><td><span class="badge badge-green">Yes</span></td><td>M365 Business</td></tr>
+            <tr><td>Domains & DNS</td><td>Various</td><td>~85</td><td><span class="badge badge-green">Yes</span></td><td>4 domains (.com, .xyz x3)</td></tr>
+            <tr><td>Mobile plan (50%)</td><td><span class="redacted">XXX</span></td><td>~90</td><td><span class="badge badge-yellow">Partial</span></td><td>Mixed use, 50% deductible</td></tr>
+            <tr><td>Home office (flat)</td><td>-</td><td>-</td><td><span class="badge badge-red">No</span></td><td>Flat-rate regime: no real expense deduction</td></tr>
+          </tbody>
+        </table>
+        <div style="margin-top:0.75rem;font-size:0.8rem;color:var(--muted)">
+          Under flat-rate (forfettario) regime, actual expenses are NOT deductible. The coefficient (78% for ATECO 62.01) replaces itemized deductions. This log is kept for regime comparison and audit readiness.
+        </div>
+      </div>
+    </div>
+
+    <div id="tab-investments" style="display:none">
+      <div class="grid grid-3" style="margin-bottom:1.5rem">
+        <div class="card">
+          <h3>Portfolio Value</h3>
+          <div class="value neutral"><span class="redacted">XX,XXX</span></div>
+          <div class="sub">Across 3 accounts</div>
+        </div>
+        <div class="card">
+          <h3>YTD Return</h3>
+          <div class="value positive">+8.4%</div>
+          <div class="sub">Benchmark (MSCI World): +12.1%</div>
+        </div>
+        <div class="card">
+          <h3>Crypto (ETP)</h3>
+          <div class="value warn"><span class="redacted">X,XXX</span></div>
+          <div class="sub">Tax: 26% capital gains (ETP regime)</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="section-title">Asset Allocation</div>
+        <div class="grid grid-2">
+          <div class="chart-wrap" style="height:250px"><canvas id="chartAlloc"></canvas></div>
+          <div>
+            <div class="progress-row">
+              <div class="progress-label"><span>Global Equity ETF</span><span>52%</span></div>
+              <div class="bar"><div class="bar-fill" style="width:52%;background:var(--accent)"></div></div>
+            </div>
+            <div class="progress-row">
+              <div class="progress-label"><span>EU Govt Bonds</span><span>18%</span></div>
+              <div class="bar"><div class="bar-fill" style="width:18%;background:var(--green)"></div></div>
+            </div>
+            <div class="progress-row">
+              <div class="progress-label"><span>Crypto (ETP)</span><span>12%</span></div>
+              <div class="bar"><div class="bar-fill" style="width:12%;background:var(--yellow)"></div></div>
+            </div>
+            <div class="progress-row">
+              <div class="progress-label"><span>Cash & equivalents</span><span>15%</span></div>
+              <div class="bar"><div class="bar-fill" style="width:15%;background:var(--muted)"></div></div>
+            </div>
+            <div class="progress-row">
+              <div class="progress-label"><span>Individual stocks</span><span>3%</span></div>
+              <div class="bar"><div class="bar-fill" style="width:3%;background:var(--red)"></div></div>
+            </div>
+            <div style="margin-top:1rem;font-size:0.8rem;color:var(--muted)">
+              Tax note: Crypto held as ETP (exchange-traded product) = 26% flat capital gains tax. NOT 33%. Minusvalenze carried forward from 2025.
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card" style="margin-top:1.5rem">
+        <div class="section-title">Capital Gains Tax Tracker</div>
+        <table>
+          <thead><tr><th>Asset</th><th>Buy Price</th><th>Current</th><th>Gain/Loss</th><th>Tax (26%)</th><th>Status</th></tr></thead>
+          <tbody>
+            <tr><td>VWCE (Vanguard FTSE All-World)</td><td><span class="redacted">XX.XX</span></td><td><span class="redacted">XX.XX</span></td><td class="positive">+14.2%</td><td><span class="redacted">XXX</span></td><td><span class="badge badge-blue">Unrealized</span></td></tr>
+            <tr><td>BTC ETP (21Shares)</td><td><span class="redacted">XX.XX</span></td><td><span class="redacted">XX.XX</span></td><td class="negative">-8.1%</td><td>-</td><td><span class="badge badge-red">Loss</span></td></tr>
+            <tr><td>AGGH (iShares Core Agg Bond)</td><td><span class="redacted">XX.XX</span></td><td><span class="redacted">XX.XX</span></td><td class="positive">+2.8%</td><td><span class="redacted">XX</span></td><td><span class="badge badge-blue">Unrealized</span></td></tr>
+            <tr><td><span class="redacted">XXXX</span> (sold Q1)</td><td><span class="redacted">XX.XX</span></td><td>-</td><td class="positive">+22.5%</td><td><span class="redacted">XXX</span></td><td><span class="badge badge-green">Realized</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="footer">
+      Built with vanilla HTML/CSS/JS + Chart.js | No frameworks, no backend, no dependencies<br>
+      Personal financial artifact — values partially redacted for privacy
+    </div>
+  </div>
+
+  <script>
+    function showTab(id) {
+      document.querySelectorAll('[id^="tab-"]').forEach(el => el.style.display = 'none');
+      document.getElementById('tab-' + id).style.display = 'block';
+      document.querySelectorAll('.tab').forEach(el => el.classList.remove('active'));
+      event.target.classList.add('active');
+      if (id === 'monthly' && !window._monthlyRendered) { renderMonthly(); window._monthlyRendered = true; }
+      if (id === 'investments' && !window._allocRendered) { renderAlloc(); window._allocRendered = true; }
+    }
+
+    const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug'];
+    const income =  [1800, 2200, 2400, 1950, 2600, 2100, 2800, 2570];
+    const expense = [1720, 1680, 1910, 1780, 1950, 1840, 2120, 1892];
+
+    new Chart(document.getElementById('chartIncomeExp'), {
+      type: 'bar',
+      data: {
+        labels: months,
+        datasets: [
+          { label: 'Income', data: income, backgroundColor: '#4ade8088', borderColor: '#4ade80', borderWidth: 1 },
+          { label: 'Expenses', data: expense, backgroundColor: '#f8717188', borderColor: '#f87171', borderWidth: 1 }
+        ]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { labels: { color: '#94a3b8', font: { size: 11 } } } },
+        scales: {
+          x: { ticks: { color: '#94a3b8' }, grid: { color: '#334155' } },
+          y: { ticks: { color: '#94a3b8' }, grid: { color: '#334155' } }
+        }
+      }
+    });
+
+    new Chart(document.getElementById('chartExpCat'), {
+      type: 'doughnut',
+      data: {
+        labels: ['Housing','Food','Transport','SaaS/Subs','Infrastructure','Health','Personal'],
+        datasets: [{
+          data: [680, 342, 89, 187, 142, 95, 223],
+          backgroundColor: ['#f87171','#4ade80','#fbbf24','#38bdf8','#818cf8','#fb923c','#94a3b8']
+        }]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { position: 'right', labels: { color: '#94a3b8', font: { size: 11 }, padding: 8 } } }
+      }
+    });
+
+    function renderMonthly() {
+      const savings = months.map((_, i) => income[i] - expense[i]);
+      new Chart(document.getElementById('chartMonthly'), {
+        type: 'line',
+        data: {
+          labels: months,
+          datasets: [{
+            label: 'Net Savings',
+            data: savings,
+            borderColor: '#38bdf8', backgroundColor: 'rgba(56,189,248,0.1)',
+            fill: true, tension: 0.3, pointRadius: 4
+          }]
+        },
+        options: {
+          responsive: true, maintainAspectRatio: false,
+          plugins: { legend: { labels: { color: '#94a3b8' } } },
+          scales: {
+            x: { ticks: { color: '#94a3b8' }, grid: { color: '#334155' } },
+            y: { ticks: { color: '#94a3b8' }, grid: { color: '#334155' } }
+          }
+        }
+      });
+    }
+
+    function renderAlloc() {
+      new Chart(document.getElementById('chartAlloc'), {
+        type: 'doughnut',
+        data: {
+          labels: ['Global Equity','EU Bonds','Crypto ETP','Cash','Stocks'],
+          datasets: [{ data: [52,18,12,15,3], backgroundColor: ['#38bdf8','#4ade80','#fbbf24','#94a3b8','#f87171'] }]
+        },
+        options: {
+          responsive: true, maintainAspectRatio: false,
+          plugins: { legend: { display: false } }
+        }
+      });
+    }
+  </script>
+</body>
+</html>
